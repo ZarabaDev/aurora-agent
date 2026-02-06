@@ -1,6 +1,10 @@
 __pycache__
 .venv
 venv
+*.pyc
 
 .env
 agent_core/config/soul.yaml
+data/vector_store/
+workspace/
+documents/benchmarks/archive/

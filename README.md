@@ -60,6 +60,11 @@
     docker-compose logs -f aurora_agent
     ```
 
+## 🔒 Privacy & Vector Database
+
+*   **Your Data Stays Local**: The agent uses a local ChromaDB vector store located in `data/vector_store`.
+*   **Auto-Creation**: This database is **automatically created** when you first run the agent. You do not need to manually set it up.
+
 ## 🧠 How It Works
 
 Aurora operates on a loop of **Perceive -> Think -> Act**.

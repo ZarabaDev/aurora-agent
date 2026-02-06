@@ -1,0 +1,16 @@
+[Unit]
+Description=Aurora Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Adjust paths as needed
+WorkingDirectory=/root/aurora
+ExecStart=/root/aurora/venv/bin/python scripts/telegram_bot.py
+Restart=always
+RestartSec=10
+EnvironmentFile=/root/aurora/.env
+
+[Install]
+WantedBy=multi-user.target

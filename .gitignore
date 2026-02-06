@@ -1,0 +1,6 @@
+__pycache__
+.venv
+venv
+
+.env
+agent_core/config/soul.yaml

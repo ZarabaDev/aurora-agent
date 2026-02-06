@@ -1,0 +1,14 @@
+services:
+  aurora:
+    build: .
+    container_name: aurora_bot
+    restart: always  # Renasce das cinzas se cair ou o server reiniciar
+    volumes:
+      - ./:/app      # ESPELHAMENTO: O que mudar aqui, muda lá dentro (e vice-versa)
+      # Excluir venv local para não conflitar com o do linux container
+      - /app/venv
+    env_file:
+      - .env
+    # Se quiser ver logs bonitos ou interagir (opcional)
+    tty: true 
+    stdin_open: true

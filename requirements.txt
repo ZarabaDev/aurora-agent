@@ -1,0 +1,6 @@
+langchain-chroma
+langchain-openai
+python-dotenv
+pyyaml
+chromadb
+rich

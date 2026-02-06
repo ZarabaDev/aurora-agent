@@ -7,12 +7,12 @@ from dataclasses import dataclass
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage, ToolMessage
-from tool_loader import load_dynamic_tools
-from basic_tools import BASIC_TOOLS
-from brain import AgentBrain
-from planner import AgentPlanner
-from critic import AgentCritic
-from memory_tools import MemoryTools
+from agent_core.tool_loader import load_dynamic_tools
+from agent_core.basic_tools import BASIC_TOOLS
+from agent_core.brain import AgentBrain
+from agent_core.planner import AgentPlanner
+from agent_core.critic import AgentCritic
+from agent_core.memory_tools import MemoryTools
 
 # --- Event Types ---
 @dataclass

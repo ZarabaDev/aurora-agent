@@ -1,6 +1,9 @@
 langchain-chroma
 langchain-openai
+langchain-groq
+langchain-core
 python-dotenv
 pyyaml
 chromadb
 rich
+requests

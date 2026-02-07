@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURORA HUD // Neural Interface</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <!-- Scanlines overlay -->
+    <div class="scanlines"></div>
+    
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <span class="logo">◢ AURORA</span>
+            <span class="version">v3.0 HUD</span>
+        </div>
+        <div class="header-center">
+            <span class="status" id="connection-status">◉ OFFLINE</span>
+        </div>
+        <div class="header-right">
+            <span class="clock" id="clock">00:00:00</span>
+        </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="hud-grid">
+        <!-- Left Column: Planner + Thoughts -->
+        <div class="column left-column">
+            <!-- Neural Planner Panel -->
+            <section class="panel planner-panel">
+                <div class="panel-header">
+                    <span class="panel-icon">🧠</span>
+                    <span class="panel-title">NEURAL PLANNER</span>
+                    <span class="panel-mode" id="thinking-mode">--</span>
+                </div>
+                <div class="panel-content" id="planner-content">
+                    <div class="empty-state">Aguardando plano...</div>
+                </div>
+            </section>
+
+            <!-- Thought Stream Panel -->
+            <section class="panel thought-panel">
+                <div class="panel-header">
+                    <span class="panel-icon">💭</span>
+                    <span class="panel-title">THOUGHT STREAM</span>
+                </div>
+                <div class="panel-content scrollable" id="thought-content">
+                    <div class="empty-state">Pensamentos internos...</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Center Column: Tool Matrix -->
+        <div class="column center-column">
+            <section class="panel tool-panel">
+                <div class="panel-header">
+                    <span class="panel-icon">⚙️</span>
+                    <span class="panel-title">TOOL MATRIX</span>
+                    <span class="tool-counter" id="tool-counter">0</span>
+                </div>
+                <div class="panel-content scrollable" id="tool-content">
+                    <div class="empty-state">Nenhuma ferramenta ativa</div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Right Column: Output Terminal -->
+        <div class="column right-column">
+            <section class="panel output-panel">
+                <div class="panel-header">
+                    <span class="panel-icon">📡</span>
+                    <span class="panel-title">OUTPUT TERMINAL</span>
+                </div>
+                <div class="panel-content scrollable" id="output-content">
+                    <div class="empty-state">Resposta final aparecerá aqui</div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Input Bar -->
+    <footer class="input-bar">
+        <div class="input-wrapper">
+            <span class="input-prefix">▶</span>
+            <input type="text" id="user-input" placeholder="Digite sua mensagem..." autocomplete="off">
+            <button id="send-btn" class="send-btn">TRANSMIT</button>
+        </div>
+        <div class="input-status" id="input-status"></div>
+    </footer>
+
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        // === AURORA HUD CONTROLLER ===
+        const socket = io();
+        
+        // DOM Elements
+        const connectionStatus = document.getElementById('connection-status');
+        const thinkingMode = document.getElementById('thinking-mode');
+        const plannerContent = document.getElementById('planner-content');
+        const thoughtContent = document.getElementById('thought-content');
+        const toolContent = document.getElementById('tool-content');
+        const outputContent = document.getElementById('output-content');
+        const toolCounter = document.getElementById('tool-counter');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const inputStatus = document.getElementById('input-status');
+        const clock = document.getElementById('clock');
+        
+        let toolCount = 0;
+        
+        // === CLOCK ===
+        function updateClock() {
+            const now = new Date();
+            clock.textContent = now.toLocaleTimeString('pt-BR');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+        
+        // === SOCKET EVENTS ===
+        socket.on('connect', () => {
+            connectionStatus.textContent = '◉ ONLINE';
+            connectionStatus.classList.add('online');
+            socket.emit('init_engine');
+        });
+        
+        socket.on('disconnect', () => {
+            connectionStatus.textContent = '◉ OFFLINE';
+            connectionStatus.classList.remove('online');
+        });
+        
+        socket.on('system', (data) => {
+            inputStatus.textContent = data.message;
+        });
+        
+        socket.on('ready', (data) => {
+            inputStatus.textContent = `Engine pronto. ${data.tools} ferramentas carregadas.`;
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+        });
+        
+        socket.on('error', (data) => {
+            addOutput(`<span class="error">⚠ ${data.message}</span>`);
+        });
+        
+        socket.on('user_message', (data) => {
+            addOutput(`<div class="user-msg">▶ ${escapeHtml(data.content)}</div>`);
+            // Clear panels for new interaction
+            clearPanels();
+        });
+        
+        socket.on('plan', (data) => {
+            thinkingMode.textContent = data.mode;
+            thinkingMode.className = `panel-mode mode-${data.mode.toLowerCase()}`;
+            
+            let html = '<ol class="plan-list">';
+            data.steps.forEach((step, i) => {
+                html += `<li class="plan-step" id="step-${i+1}">${escapeHtml(step)}</li>`;
+            });
+            html += '</ol>';
+            plannerContent.innerHTML = html;
+        });
+        
+        socket.on('step_start', (data) => {
+            const stepEl = document.getElementById(`step-${data.index}`);
+            if (stepEl) {
+                stepEl.classList.add('active');
+            }
+            inputStatus.textContent = `Passo ${data.index}/${data.total}`;
+        });
+        
+        socket.on('tool_call', (data) => {
+            toolCount++;
+            toolCounter.textContent = toolCount;
+            
+            const toolEl = document.createElement('div');
+            toolEl.className = 'tool-entry calling';
+            toolEl.innerHTML = `
+                <div class="tool-name">⚡ ${escapeHtml(data.name)}</div>
+                <div class="tool-args">${escapeHtml(JSON.stringify(data.args, null, 1))}</div>
+            `;
+            
+            if (toolContent.querySelector('.empty-state')) {
+                toolContent.innerHTML = '';
+            }
+            toolContent.appendChild(toolEl);
+            toolContent.scrollTop = toolContent.scrollHeight;
+        });
+        
+        socket.on('tool_result', (data) => {
+            const lastTool = toolContent.querySelector('.tool-entry.calling:last-of-type');
+            if (lastTool) {
+                lastTool.classList.remove('calling');
+                lastTool.classList.add('done');
+                lastTool.innerHTML += `<div class="tool-result">↳ ${escapeHtml(data.preview)}</div>`;
+            }
+        });
+        
+        socket.on('thought', (data) => {
+            if (thoughtContent.querySelector('.empty-state')) {
+                thoughtContent.innerHTML = '';
+            }
+            const thoughtEl = document.createElement('div');
+            thoughtEl.className = 'thought-entry';
+            thoughtEl.innerHTML = `💭 ${escapeHtml(data.content).substring(0, 200)}...`;
+            thoughtContent.appendChild(thoughtEl);
+            thoughtContent.scrollTop = thoughtContent.scrollHeight;
+        });
+        
+        socket.on('final_answer', (data) => {
+            addOutput(`<div class="aurora-msg">${formatMarkdown(data.content)}</div>`);
+        });
+        
+        socket.on('log', (data) => {
+            inputStatus.textContent = data.message;
+        });
+        
+        socket.on('processing_complete', () => {
+            inputStatus.textContent = 'Pronto.';
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+        });
+        
+        // === HELPERS ===
+        function clearPanels() {
+            toolCount = 0;
+            toolCounter.textContent = '0';
+            plannerContent.innerHTML = '<div class="empty-state">Gerando plano...</div>';
+            thoughtContent.innerHTML = '<div class="empty-state">Pensamentos internos...</div>';
+            toolContent.innerHTML = '<div class="empty-state">Nenhuma ferramenta ativa</div>';
+            thinkingMode.textContent = '--';
+        }
+        
+        function addOutput(html) {
+            if (outputContent.querySelector('.empty-state')) {
+                outputContent.innerHTML = '';
+            }
+            outputContent.innerHTML += html;
+            outputContent.scrollTop = outputContent.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatMarkdown(text) {
+            // Simple markdown formatting
+            return escapeHtml(text)
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+        }
+        
+        function sendMessage() {
+            const msg = userInput.value.trim();
+            if (!msg) return;
+            
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            inputStatus.textContent = 'Processando...';
+            
+            socket.emit('send_message', { message: msg });
+            userInput.value = '';
+        }
+        
+        // === EVENT LISTENERS ===
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        // Initial state
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+    </script>
+</body>
+</html>

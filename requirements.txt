@@ -7,3 +7,7 @@ pyyaml
 chromadb
 rich
 requests
+flask
+flask-socketio
+python-socketio
+eventlet

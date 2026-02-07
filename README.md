@@ -10,6 +10,27 @@
 *   **Memory System**: Utilizes a vector database (ChromaDB) for long-term memory, allowing it to recall past interactions and learn from experience.
 *   **Multi-Modal**: Capable of interacting via Terminal, and optionally integrated with Telegram.
 
+## 🖥️ Aurora HUD // Neural Interface
+
+Aurora features a **Sci-Fi / Retro-Futurism Web Interface** that allows you to see the agent's internal thought process in real-time.
+
+![Aurora HUD](aurora_hud_final_check.png)
+
+### Accessing the HUD
+
+*   **Localhost**: Access via `http://localhost:5001`
+*   **VPS / Remote**: The interface is designed to be accessed securely via an **SSH Tunnel**:
+    ```bash
+    ssh -L 5001:localhost:5001 user@your-vps-ip
+    ```
+    Then open `http://localhost:5001` on your local machine.
+
+The HUD visualizes:
+*   🧠 **Neural Planner**: The breakdown of tasks.
+*   💭 **Thought Stream**: Internal reasoning and monologue.
+*   ⚙️ **Tool Matrix**: Real-time tool execution and results.
+*   📡 **Output Terminal**: The final response to the user.
+
 ## 🛠️ Installation
 
 ### Prerequisites

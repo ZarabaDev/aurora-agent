@@ -164,7 +164,7 @@ class AgentBrain:
         # 4. Gera resposta
         response = chain.invoke({
             "history": chat_history,
-            "input": user_input
+            "input": user_input.encode('utf-8', 'replace').decode('utf-8')
         })
         
         return response

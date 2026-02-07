@@ -65,7 +65,9 @@ class AgentPlanner:
         chain = prompt | self.llm
         
         try:
-            response = chain.invoke({"objective": user_objective})
+            # Sanitize input to prevent utf-8 encoding errors
+            sanitized_objective = user_objective.encode('utf-8', 'replace').decode('utf-8')
+            response = chain.invoke({"objective": sanitized_objective})
             content = response.content
             # Clean markdown code blocks if present
             if "```" in content:

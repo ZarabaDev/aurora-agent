@@ -60,7 +60,7 @@ def main():
                         live_status.update(Spinner("dots", text=f"Passo {step_idx}/{total}: {event.content}"))
                     
                     elif event.type == "tool_call":
-                        live_status.update(Spinner("hammer", text=f"Usando ferramenta: {event.content}..."))
+                        live_status.update(Spinner("bouncingBar", text=f"Usando ferramenta: {event.content}..."))
                     
                     elif event.type == "tool_result":
                         # Optional: Print raw result only in debug or verbose mode

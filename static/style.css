@@ -10,7 +10,7 @@
     --neon-yellow: #ffff00;
     --neon-orange: #ff6600;
     --neon-red: #ff0040;
-    
+
     /* Base Colors */
     --bg-dark: #0a0a0f;
     --bg-panel: #0d1117;
@@ -19,13 +19,13 @@
     --text-primary: #e6edf3;
     --text-secondary: #8b949e;
     --text-dim: #484f58;
-    
+
     /* Panel Colors */
     --planner-color: var(--neon-cyan);
     --thought-color: var(--neon-magenta);
     --tool-color: var(--neon-yellow);
     --output-color: var(--neon-green);
-    
+
     /* Fonts */
     --font-pixel: 'Press Start 2P', cursive;
     --font-mono: 'Share Tech Mono', monospace;
@@ -41,7 +41,7 @@ body {
     font-family: var(--font-mono);
     background: var(--bg-dark);
     color: var(--text-primary);
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -56,19 +56,22 @@ body {
     height: 100%;
     pointer-events: none;
     z-index: 1000;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.1) 0px,
-        rgba(0, 0, 0, 0.1) 1px,
-        transparent 1px,
-        transparent 3px
-    );
+    background: repeating-linear-gradient(0deg,
+            rgba(0, 0, 0, 0.1) 0px,
+            rgba(0, 0, 0, 0.1) 1px,
+            transparent 1px,
+            transparent 3px);
     animation: scanlines 0.1s infinite linear;
 }
 
 @keyframes scanlines {
-    0% { background-position: 0 0; }
-    100% { background-position: 0 3px; }
+    0% {
+        background-position: 0 0;
+    }
+
+    100% {
+        background-position: 0 3px;
+    }
 }
 
 /* === HEADER === */
@@ -117,8 +120,16 @@ body {
 }
 
 @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0.3; }
+
+    0%,
+    50% {
+        opacity: 1;
+    }
+
+    51%,
+    100% {
+        opacity: 0.3;
+    }
 }
 
 .clock {
@@ -145,10 +156,21 @@ body {
     min-height: 0;
 }
 
-.left-column .planner-panel { flex: 1; }
-.left-column .thought-panel { flex: 1; }
-.center-column .tool-panel { flex: 1; }
-.right-column .output-panel { flex: 1; }
+.left-column .planner-panel {
+    flex: 1;
+}
+
+.left-column .thought-panel {
+    flex: 1;
+}
+
+.center-column .tool-panel {
+    flex: 1;
+}
+
+.right-column .output-panel {
+    flex: 1;
+}
 
 /* === PANELS === */
 .panel {
@@ -158,6 +180,7 @@ body {
     flex-direction: column;
     position: relative;
     overflow: hidden;
+    min-height: 0;
 }
 
 /* Panel corner decorations */
@@ -249,21 +272,53 @@ body {
 }
 
 /* Panel specific colors */
-.planner-panel { border-color: var(--planner-color); }
-.planner-panel .panel-header { border-color: var(--planner-color); }
-.planner-panel .panel-title { color: var(--planner-color); }
+.planner-panel {
+    border-color: var(--planner-color);
+}
 
-.thought-panel { border-color: var(--thought-color); }
-.thought-panel .panel-header { border-color: var(--thought-color); }
-.thought-panel .panel-title { color: var(--thought-color); }
+.planner-panel .panel-header {
+    border-color: var(--planner-color);
+}
 
-.tool-panel { border-color: var(--tool-color); }
-.tool-panel .panel-header { border-color: var(--tool-color); }
-.tool-panel .panel-title { color: var(--tool-color); }
+.planner-panel .panel-title {
+    color: var(--planner-color);
+}
 
-.output-panel { border-color: var(--output-color); }
-.output-panel .panel-header { border-color: var(--output-color); }
-.output-panel .panel-title { color: var(--output-color); }
+.thought-panel {
+    border-color: var(--thought-color);
+}
+
+.thought-panel .panel-header {
+    border-color: var(--thought-color);
+}
+
+.thought-panel .panel-title {
+    color: var(--thought-color);
+}
+
+.tool-panel {
+    border-color: var(--tool-color);
+}
+
+.tool-panel .panel-header {
+    border-color: var(--tool-color);
+}
+
+.tool-panel .panel-title {
+    color: var(--tool-color);
+}
+
+.output-panel {
+    border-color: var(--output-color);
+}
+
+.output-panel .panel-header {
+    border-color: var(--output-color);
+}
+
+.output-panel .panel-title {
+    color: var(--output-color);
+}
 
 /* === PLAN LIST === */
 .plan-list {
@@ -323,8 +378,15 @@ body {
 }
 
 @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 5px var(--neon-yellow); }
-    50% { box-shadow: 0 0 15px var(--neon-yellow); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 5px var(--neon-yellow);
+    }
+
+    50% {
+        box-shadow: 0 0 15px var(--neon-yellow);
+    }
 }
 
 .tool-name {
@@ -361,8 +423,15 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateX(-10px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 /* === OUTPUT CONTENT === */
@@ -489,7 +558,7 @@ body {
     .hud-grid {
         grid-template-columns: 1fr 1fr;
     }
-    
+
     .right-column {
         grid-column: span 2;
     }
@@ -499,11 +568,11 @@ body {
     .hud-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .right-column {
         grid-column: span 1;
     }
-    
+
     .header {
         flex-wrap: wrap;
         gap: 8px;

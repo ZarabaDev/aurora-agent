@@ -1,19 +1,67 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AURORA HUD // Neural Interface</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
+    <style>
+        .upload-btn {
+            background: none;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            font-family: 'Share Tech Mono', monospace;
+            cursor: pointer;
+            padding: 0 10px;
+            margin-right: 5px;
+            transition: all 0.2s;
+        }
+        .upload-btn:hover {
+            background: var(--primary-color);
+            color: #000;
+        }
+        .preview-container {
+            position: relative;
+            display: none;
+            margin-right: 10px;
+        }
+        #image-preview {
+            max-height: 50px;
+            border: 1px solid var(--accent-color);
+        }
+        .remove-preview {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff0055;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .input-wrapper.dragover {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px dashed var(--primary-color);
+        }
+    </style>
 </head>
+
 <body>
-    <!-- Scanlines overlay -->
     <div class="scanlines"></div>
-    
-    <!-- Header -->
+
     <header class="header">
         <div class="header-left">
             <span class="logo">◢ AURORA</span>
@@ -23,15 +71,14 @@
             <span class="status" id="connection-status">◉ OFFLINE</span>
         </div>
         <div class="header-right">
+            <span class="timer" id="task-timer">00:00</span>
             <span class="clock" id="clock">00:00:00</span>
+            <button id="reset-btn" class="reset-btn" title="Nova Conversa">↻ NEW</button>
         </div>
     </header>
 
-    <!-- Main Grid -->
     <main class="hud-grid">
-        <!-- Left Column: Planner + Thoughts -->
         <div class="column left-column">
-            <!-- Neural Planner Panel -->
             <section class="panel planner-panel">
                 <div class="panel-header">
                     <span class="panel-icon">🧠</span>
@@ -43,7 +90,6 @@
                 </div>
             </section>
 
-            <!-- Thought Stream Panel -->
             <section class="panel thought-panel">
                 <div class="panel-header">
                     <span class="panel-icon">💭</span>
@@ -55,7 +101,6 @@
             </section>
         </div>
 
-        <!-- Center Column: Tool Matrix -->
         <div class="column center-column">
             <section class="panel tool-panel">
                 <div class="panel-header">
@@ -69,7 +114,6 @@
             </section>
         </div>
 
-        <!-- Right Column: Output Terminal -->
         <div class="column right-column">
             <section class="panel output-panel">
                 <div class="panel-header">
@@ -83,23 +127,25 @@
         </div>
     </main>
 
-    <!-- Input Bar -->
     <footer class="input-bar">
-        <div class="input-wrapper">
+        <div class="input-wrapper" id="input-container">
             <span class="input-prefix">▶</span>
-            <input type="text" id="user-input" placeholder="Digite sua mensagem..." autocomplete="off">
+            <input type="file" id="file-input" style="display: none;" accept="image/*">
+            <button id="upload-trigger" class="upload-btn" title="Anexar Imagem">📷</button>
+            <div class="preview-container" id="preview-container">
+                <img id="image-preview" src="" alt="Preview">
+                <button class="remove-preview" id="remove-preview" title="Remover anexo">×</button>
+            </div>
+            <input type="text" id="user-input" placeholder="Digite ou cole uma imagem (Ctrl+V)..." autocomplete="off">
             <button id="send-btn" class="send-btn">TRANSMIT</button>
         </div>
         <div class="input-status" id="input-status"></div>
     </footer>
 
-    <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        // === AURORA HUD CONTROLLER ===
         const socket = io();
-        
-        // DOM Elements
+
         const connectionStatus = document.getElementById('connection-status');
         const thinkingMode = document.getElementById('thinking-mode');
         const plannerContent = document.getElementById('planner-content');
@@ -111,87 +157,88 @@
         const sendBtn = document.getElementById('send-btn');
         const inputStatus = document.getElementById('input-status');
         const clock = document.getElementById('clock');
-        
+        const taskTimer = document.getElementById('task-timer');
+        const resetBtn = document.getElementById('reset-btn');
+        const fileInput = document.getElementById('file-input');
+        const uploadTrigger = document.getElementById('upload-trigger');
+        const imagePreview = document.getElementById('image-preview');
+        const previewContainer = document.getElementById('preview-container');
+        const removePreviewBtn = document.getElementById('remove-preview');
+        const inputContainer = document.getElementById('input-container');
+
         let toolCount = 0;
-        
-        // === CLOCK ===
+        let timerInterval = null;
+        let startTime = null;
+        let currentImagePath = null;
+
         function updateClock() {
             const now = new Date();
             clock.textContent = now.toLocaleTimeString('pt-BR');
         }
         setInterval(updateClock, 1000);
         updateClock();
-        
-        // === SOCKET EVENTS ===
+
         socket.on('connect', () => {
             connectionStatus.textContent = '◉ ONLINE';
             connectionStatus.classList.add('online');
             socket.emit('init_engine');
         });
-        
+
         socket.on('disconnect', () => {
             connectionStatus.textContent = '◉ OFFLINE';
             connectionStatus.classList.remove('online');
         });
-        
+
         socket.on('system', (data) => {
             inputStatus.textContent = data.message;
         });
-        
+
         socket.on('ready', (data) => {
             inputStatus.textContent = `Engine pronto. ${data.tools} ferramentas carregadas.`;
             userInput.disabled = false;
             sendBtn.disabled = false;
         });
-        
+
         socket.on('error', (data) => {
             addOutput(`<span class="error">⚠ ${data.message}</span>`);
         });
-        
+
         socket.on('user_message', (data) => {
             addOutput(`<div class="user-msg">▶ ${escapeHtml(data.content)}</div>`);
-            // Clear panels for new interaction
             clearPanels();
         });
-        
+
         socket.on('plan', (data) => {
             thinkingMode.textContent = data.mode;
             thinkingMode.className = `panel-mode mode-${data.mode.toLowerCase()}`;
-            
             let html = '<ol class="plan-list">';
             data.steps.forEach((step, i) => {
-                html += `<li class="plan-step" id="step-${i+1}">${escapeHtml(step)}</li>`;
+                html += `<li class="plan-step" id="step-${i + 1}">${escapeHtml(step)}</li>`;
             });
             html += '</ol>';
             plannerContent.innerHTML = html;
         });
-        
+
         socket.on('step_start', (data) => {
             const stepEl = document.getElementById(`step-${data.index}`);
-            if (stepEl) {
-                stepEl.classList.add('active');
-            }
+            if (stepEl) stepEl.classList.add('active');
             inputStatus.textContent = `Passo ${data.index}/${data.total}`;
         });
-        
+
         socket.on('tool_call', (data) => {
             toolCount++;
             toolCounter.textContent = toolCount;
-            
             const toolEl = document.createElement('div');
             toolEl.className = 'tool-entry calling';
             toolEl.innerHTML = `
                 <div class="tool-name">⚡ ${escapeHtml(data.name)}</div>
                 <div class="tool-args">${escapeHtml(JSON.stringify(data.args, null, 1))}</div>
             `;
-            
-            if (toolContent.querySelector('.empty-state')) {
-                toolContent.innerHTML = '';
-            }
+            if (toolContent.querySelector('.empty-state')) toolContent.innerHTML = '';
             toolContent.appendChild(toolEl);
             toolContent.scrollTop = toolContent.scrollHeight;
         });
-        
+
         socket.on('tool_result', (data) => {
             const lastTool = toolContent.querySelector('.tool-entry.calling:last-of-type');
             if (lastTool) {
@@ -200,34 +247,58 @@
                 lastTool.innerHTML += `<div class="tool-result">↳ ${escapeHtml(data.preview)}</div>`;
             }
         });
-        
+
         socket.on('thought', (data) => {
-            if (thoughtContent.querySelector('.empty-state')) {
-                thoughtContent.innerHTML = '';
-            }
+            if (thoughtContent.querySelector('.empty-state')) thoughtContent.innerHTML = '';
             const thoughtEl = document.createElement('div');
             thoughtEl.className = 'thought-entry';
             thoughtEl.innerHTML = `💭 ${escapeHtml(data.content).substring(0, 200)}...`;
             thoughtContent.appendChild(thoughtEl);
             thoughtContent.scrollTop = thoughtContent.scrollHeight;
         });
-        
+
         socket.on('final_answer', (data) => {
             addOutput(`<div class="aurora-msg">${formatMarkdown(data.content)}</div>`);
         });
-        
+
         socket.on('log', (data) => {
             inputStatus.textContent = data.message;
         });
-        
+
         socket.on('processing_complete', () => {
             inputStatus.textContent = 'Pronto.';
             userInput.disabled = false;
             sendBtn.disabled = false;
             userInput.focus();
+            clearImagePreview();
         });
-        
-        // === HELPERS ===
+
+        socket.on('reset_complete', () => {
+            clearPanels();
+            resetTimer();
+            outputContent.innerHTML = '<div class="empty-state">Terminal limpo. Aguardando input...</div>';
+        });
+
+        function startTimer() {
+            if (timerInterval) return;
+            if (!startTime) startTime = Date.now();
+            taskTimer.classList.add('active');
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                taskTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function resetTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = null;
+            startTime = null;
+            taskTimer.textContent = "00:00";
+            taskTimer.classList.remove('active');
+        }
+
         function clearPanels() {
             toolCount = 0;
             toolCounter.textContent = '0';
@@ -236,51 +307,131 @@
             toolContent.innerHTML = '<div class="empty-state">Nenhuma ferramenta ativa</div>';
             thinkingMode.textContent = '--';
         }
-        
+
         function addOutput(html) {
-            if (outputContent.querySelector('.empty-state')) {
-                outputContent.innerHTML = '';
-            }
+            if (outputContent.querySelector('.empty-state')) outputContent.innerHTML = '';
             outputContent.innerHTML += html;
             outputContent.scrollTop = outputContent.scrollHeight;
         }
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
+
         function formatMarkdown(text) {
-            // Simple markdown formatting
             return escapeHtml(text)
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
                 .replace(/`(.*?)`/g, '<code>$1</code>')
                 .replace(/\n/g, '<br>');
         }
-        
-        function sendMessage() {
+
+        function clearImagePreview() {
+            previewContainer.style.display = 'none';
+            imagePreview.src = '';
+            currentImagePath = null;
+            fileInput.value = '';
+            inputStatus.textContent = 'Anexo removido.';
+        }
+
+        async function handleFileUpload(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                previewContainer.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            // Upload to server
+            const formData = new FormData();
+            formData.append('image', file);
+
+            inputStatus.textContent = 'Fazendo upload da imagem...';
+            try {
+                const resp = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.filepath) {
+                    currentImagePath = data.filepath;
+                    inputStatus.textContent = 'Imagem pronta para análise.';
+                }
+            } catch (err) {
+                inputStatus.textContent = 'Erro no upload.';
+                console.error(err);
+            }
+        }
+
+        async function sendMessage() {
             const msg = userInput.value.trim();
-            if (!msg) return;
-            
+            if (!msg && !currentImagePath) return;
+
+            startTimer();
             userInput.disabled = true;
             sendBtn.disabled = true;
             inputStatus.textContent = 'Processando...';
-            
-            socket.emit('send_message', { message: msg });
+
+            socket.emit('send_message', { 
+                message: msg,
+                image_path: currentImagePath 
+            });
             userInput.value = '';
         }
-        
-        // === EVENT LISTENERS ===
+
+        // Upload handling
+        uploadTrigger.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
+        removePreviewBtn.addEventListener('click', clearImagePreview);
+
+        // Paste handling (Ctrl+V)
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    handleFileUpload(blob);
+                }
+            }
+        });
+
+        // Drag and Drop handling
+        inputContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            inputContainer.classList.add('dragover');
+        });
+        inputContainer.addEventListener('dragleave', () => {
+            inputContainer.classList.remove('dragover');
+        });
+        inputContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            inputContainer.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            handleFileUpload(file);
+        });
+
         sendBtn.addEventListener('click', sendMessage);
         userInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
-        
-        // Initial state
+
+        resetBtn.addEventListener('click', () => {
+            if (confirm('Tem certeza que deseja limpar a sessão atual?')) {
+                socket.emit('reset_engine');
+                resetTimer();
+                resetBtn.disabled = true;
+                setTimeout(() => resetBtn.disabled = false, 2000);
+            }
+        });
+
         userInput.disabled = true;
         sendBtn.disabled = true;
     </script>
 </body>
+
 </html>

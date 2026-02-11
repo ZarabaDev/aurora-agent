@@ -1,44 +1,55 @@
-# Aurora Agent
+# Aurora Agent v5.0 🌌
 
-**Aurora** is a self-building, autonomous personal assistant designed to evolve and adapt. Inspired by projects like **AutoGPT**, **OpenClaw**, and **BabyAGI**, Aurora possesses the unique capability to not only decide which tools to use but also to *create* new tools on the fly when it encounters a problem it cannot solve with its existing capabilities.
+**Aurora** is a self-building, autonomous personal assistant designed to evolve and adapt. In version **v5.0**, Aurora introduces a revolutionary **"Brain + Voice" cognitive architecture**, separating high-level reasoning from natural language generation.
 
-## 🚀 Features
+## 🚀 New in v5.0
 
-*   **Self-Building Capability**: Aurora can write its own Python tools to extend its functionality, effectively programming itself to solve new tasks.
-*   **Dynamic Thinking Modes**: Switches between "Fast" (Groq/Llama) for quick tasks and "Deep" (OpenRouter/DeepSeek/Gemini) for complex reasoning.
-*   **Autonomous Decision Making**: Determines the best approach to a problem, plans its actions, and executes them with minimal human intervention.
-*   **Memory System**: Utilizes a vector database (ChromaDB) for long-term memory, allowing it to recall past interactions and learn from experience.
-*   **Multi-Modal**: Capable of interacting via Terminal, and optionally integrated with Telegram.
+### 🧠 Brain + Voice Separation
+Aurora now thinks like a human but speaks like a persona.
+- **The Brain (Gemini 3)**: Analyzes complex problems, plans execution, and generates precise technical instructions.
+- **The Voice (Groq/Llama)**: Translates those instructions into natural, empathetic, and persona-aligned speech. No more robotic "Task completed" messages.
+
+### 🛡️ Resilient Memory System
+Never loses context.
+- **Primary**: Uses `OpenAI Embeddings` for high-quality semantic search.
+- **Fallback**: Automatically switches to local `HuggingFace Embeddings` (CPU-optimized) if the API fails.
+- **Vector Store**: Powered by ChromaDB (local).
+
+### 🌙 Sleep & Consolidation Routine
+Aurora learns while you sleep.
+- **Interaction Logging**: Every thought, action, and result is logged to `data/logs/` (JSONL format).
+- **Sleep Mode**: A nightly routine (`scripts/run_sleep.py`) analyzes the day's logs, extracts insights, and saves them to long-term memory.
+
+---
 
 ## 🖥️ Aurora HUD // Neural Interface
 
-Aurora features a **Sci-Fi / Retro-Futurism Web Interface** that allows you to see the agent's internal thought process in real-time.
+Aurora features a **Sci-Fi / Retro-Futurism Web Interface** that visualizes the v5.0 cognitive process in real-time.
 
 ![Aurora HUD](aurora_hud_final_check.png)
 
+The HUD displays:
+*   🧠 **Neural Planner**: System 2 reasoning (Deep Thinking).
+*   💭 **Thought Stream**: Internal monologue and critique.
+*   ⚙️ **Tool Matrix**: Live tool execution status.
+*   📡 **Output Terminal**: The synthesized voice response.
+
 ### Accessing the HUD
-
-*   **Localhost**: Access via `http://localhost:5001`
-*   **VPS / Remote**: The interface is designed to be accessed securely via an **SSH Tunnel**:
+1.  **Start the Server**:
     ```bash
-    ssh -L 5001:localhost:5001 user@your-vps-ip
+    python web_server.py
     ```
-    Then open `http://localhost:5001` on your local machine.
+2.  **Open Browser**: Go to `http://localhost:5001`
 
-The HUD visualizes:
-*   🧠 **Neural Planner**: The breakdown of tasks.
-*   💭 **Thought Stream**: Internal reasoning and monologue.
-*   ⚙️ **Tool Matrix**: Real-time tool execution and results.
-*   📡 **Output Terminal**: The final response to the user.
+---
 
 ## 🛠️ Installation
 
 ### Prerequisites
-
 *   Python 3.10+
-*   [Docker](https://www.docker.com/) (Optional, for containerized deployment)
+*   [Docker](https://www.docker.com/) (Optional)
 
-### Local Setup
+### Setup
 
 1.  **Clone the repository:**
     ```bash
@@ -46,58 +57,42 @@ The HUD visualizes:
     cd aurora-agent
     ```
 
-2.  **Create a Virtual Environment:**
+2.  **Install Dependencies:**
     ```bash
     python3 -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
-
-3.  **Install Dependencies:**
-    ```bash
+    source venv/bin/activate
     pip install -r requirements.txt
     ```
 
-4.  **Configuration:**
-    Copy the example environment file and configure your API keys.
+3.  **Configuration:**
+    Copy `.env.example` to `.env` and configure your keys:
     ```bash
     cp .env.example .env
     ```
-    Edit `.env` and add your API keys (OpenAI, OpenRouter, Groq, etc.).
+    Required keys: `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`.
 
-5.  **Run Aurora:**
+4.  **Run Aurora:**
     ```bash
-    python main.py
+    python agent_core/main.py
     ```
 
-### 🐳 Docker Setup
+---
 
-1.  **Build and Run with Docker Compose:**
-    ```bash
-    docker-compose up --build -d
-    ```
+## 🧠 Cognitive Architecture v5.0
 
-2.  **View Logs:**
-    ```bash
-    docker-compose logs -f aurora_agent
-    ```
+Aurora operates on a sophisticated loop:
 
-## 🔒 Privacy & Vector Database
+1.  **Perceive**: Logs user input and retrieves context from robust memory.
+2.  **Gatekeeper**: Decides between **Fast Thinking** (Reflex) or **Deep Thinking** (Reasoning).
+3.  **Think (System 2)**: Gemini 3 generates a multi-step plan and critiques it.
+4.  **Act**: Executes tools (Python, Shell, Search) and validates results.
+5.  **Synthesize**: The **Voice Module** transforms the technical outcome into natural speech.
+6.  **Consolidate**: Periodically (during "sleep"), successful patterns are stored in long-term memory.
 
-*   **Your Data Stays Local**: The agent uses a local ChromaDB vector store located in `data/vector_store`.
-*   **Auto-Creation**: This database is **automatically created** when you first run the agent. You do not need to manually set it up.
-
-## 🧠 How It Works
-
-Aurora operates on a loop of **Perceive -> Think -> Act**.
-1.  **Planner**: Breaks down user requests into actionable steps.
-2.  **Critic**: Reviews the plan and selects the appropriate "Thinking Mode" (Fast vs. Deep).
-3.  **Executor**: Runs the tools or writes new code.
-4.  **Learner**: Stores successful outcomes in its vector memory for future reference.
+---
 
 ## 🤝 Contributing
-
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
-
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

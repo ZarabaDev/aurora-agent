@@ -2,6 +2,7 @@ langchain-chroma
 langchain-openai
 langchain-groq
 langchain-core
+langchain-huggingface
 python-dotenv
 pyyaml
 chromadb
@@ -11,3 +12,4 @@ flask
 flask-socketio
 python-socketio
 eventlet
+sentence-transformers

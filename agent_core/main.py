@@ -1,5 +1,9 @@
 import os
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
@@ -11,14 +15,14 @@ from rich.spinner import Spinner
 # Add project root to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agent_core.engine import AuroraEngine
+from agent_core.core.orchestrator import Orchestrator
 
 console = Console()
 
 def main():
-    console.print(Panel("[bold cyan]Inicializando Aurora (v3.0 - Engine)[/bold cyan]", border_style="cyan"))
+    console.print(Panel("[bold cyan]Inicializando Aurora (v4.0 - Cognitive Core)[/bold cyan]", border_style="cyan"))
 
-    engine = AuroraEngine()
+    engine = Orchestrator()
     
     # Init Phase
     with console.status("[bold green]Iniciando Engine...[/bold green]", spinner="dots"):
@@ -68,10 +72,16 @@ def main():
                         pass
                         
                     elif event.type == "thought":
-                        # Subtle thought log
-                        # console.print(f"[dim italic]  💭 {event.content[:80]}...[/dim italic]")
-                        pass
+                        # Subtle thought log (internal monologue or critique)
+                        console.print(f"[dim italic]  💭 {event.content}[/dim italic]")
                     
+                    elif event.type == "log":
+                        # System logs (Memory Found, Mode Selected, Synthesizing...)
+                        live_status.update(Spinner("dots", text=f"{event.content}"))
+                        # Optionally print significant logs
+                        if "Modo:" in str(event.content) or "Memórias" in str(event.content):
+                             console.print(f"[dim cyan]  ℹ {event.content}[/dim cyan]")
+
                     elif event.type == "final_answer":
                         live_status.stop()
                         md = Markdown(event.content)

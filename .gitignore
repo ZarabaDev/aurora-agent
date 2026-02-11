@@ -6,5 +6,5 @@ venv
 .env
 agent_core/config/soul.yaml
 data/vector_store/
+data/logs/
 workspace/
-documents/benchmarks/archive/

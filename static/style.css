@@ -132,11 +132,59 @@ body {
     }
 }
 
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.timer,
 .clock {
     font-family: var(--font-mono);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--neon-cyan);
     letter-spacing: 2px;
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    background: rgba(0, 20, 20, 0.5);
+    padding: 4px 10px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.timer::before {
+    content: 'T+';
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+.reset-btn {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid var(--neon-red);
+    color: var(--neon-red);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: relative;
+    overflow: hidden;
+}
+
+.reset-btn:hover:not(:disabled) {
+    background: var(--neon-red);
+    color: var(--bg-dark);
+    box-shadow: 0 0 15px var(--neon-red);
+}
+
+.reset-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: var(--text-dim);
+    color: var(--text-dim);
 }
 
 /* === MAIN GRID === */

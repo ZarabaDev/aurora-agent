@@ -34,14 +34,7 @@ class Thinker(AgentModule):
         memory = context.get("memory_context", "")
         soul = context.get("soul_text", "Você é Aurora, uma assistente autônoma.")
 
-        memory_block = ""
-        if memory:
-            memory_block = f"""
-[MEMÓRIAS RELEVANTES]
-{memory}
-"""
-
-        system_prompt = f"""{soul}
+        system_prompt = """{soul}
 
 Você é a consciência de Aurora. Este é o seu espaço de pensamento interno, sua voz na cabeça.
 
@@ -60,14 +53,14 @@ Diretório: {cwd}
 5. Se precisar de algo que não existe, planeje a criação da ferramenta.
 
 [FORMATO DE SAÍDA - JSON APENAS]
-{{{{
+{{
     "thought_stream": "Seu monólogo interno. Comente sobre a tarefa, critique a abordagem, pense alto como uma voz na cabeça.",
     "plan": [
         "Passo 1: Descrição clara da ação",
         "Passo 2: Próxima ação..."
     ],
     "self_notes": "Notas para sua própria evolução ou lembretes (opcional)"
-}}}}"""
+}}"""
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
@@ -76,7 +69,13 @@ Diretório: {cwd}
         chain = prompt | self.llm
 
         try:
-            response = chain.invoke({"input": user_input})
+            response = chain.invoke({
+                "input": user_input,
+                "soul": soul,
+                "cwd": cwd,
+                "memory_block": memory_block,
+                "tools_desc": tools_desc
+            })
             content = response.content.strip()
 
             # Extract JSON from markdown code blocks if present

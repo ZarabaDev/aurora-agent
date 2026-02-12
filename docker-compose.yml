@@ -7,6 +7,7 @@ services:
       # - ./:/app      <-- DESATIVADO PARA PRODUÇÃO: Usa o código de dentro da imagem (COPY . .)
       # Mantém apenas os dados persistentes (Memória do Agente)
       - aurora_data:/app/data/vector_store
+      - ./data/logs:/app/data/logs
       # Excluir venv local para não conflitar (opcional já que não estamos mais montando o root)
       # - /app/venv
     env_file:

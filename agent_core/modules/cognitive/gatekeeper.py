@@ -28,7 +28,7 @@ class Gatekeeper(AgentModule):
         if context and context.get("memory_context"):
             memory_hint = f"\n[MEMÓRIAS RELEVANTES]\n{context['memory_context']}\n"
 
-        system_prompt = f"""You are the Gatekeeper of an AI Agent called Aurora.
+        system_prompt = """You are the Gatekeeper of an AI Agent called Aurora.
 Classify the User Input into one of two modes:
 
 1. MODE_SHALLOW: Simple greetings, quick factual questions, thanks, small talk.
@@ -43,6 +43,7 @@ Classify the User Input into one of two modes:
    - Anything referencing memory or past interactions
    
    Examples: "Escreva um script", "Quem é você?", "Crie uma ferramenta", "O que conversamos ontem?"
+
 {memory_hint}
 OUTPUT ONLY: MODE_SHALLOW or MODE_DEEP"""
 
@@ -53,7 +54,7 @@ OUTPUT ONLY: MODE_SHALLOW or MODE_DEEP"""
 
         try:
             chain = prompt | self.llm | StrOutputParser()
-            result = chain.invoke({"input": user_input})
+            result = chain.invoke({"input": user_input, "memory_hint": memory_hint})
             decision = result.strip().upper() if isinstance(result, str) else str(result).strip().upper()
 
             if "DEEP" in decision:

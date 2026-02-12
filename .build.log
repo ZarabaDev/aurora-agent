@@ -1,0 +1,13 @@
+2026-02-06T23:21:36.637939 Project directory: /docker/aurora
+2026-02-06T23:21:36.638167 Pulling project images
+2026-02-06T23:21:36.638632 ------------------------------
+2026-02-06T23:21:36.708967  aurora Skipped No image to be pulled
+2026-02-06T23:21:36.713300 ------------------------------
+2026-02-06T23:21:36.713411 Deploying project
+2026-02-06T23:21:36.713999 ------------------------------
+2026-02-06T23:21:36.789764  Container aurora_bot Recreate 
+2026-02-06T23:21:36.884445  Container aurora_bot Recreated 
+2026-02-06T23:21:36.892034  Container aurora_bot Starting 
+2026-02-06T23:21:37.006113  Container aurora_bot Started 
+2026-02-06T23:21:37.010361 ------------------------------
+2026-02-06T23:21:37.010396 Project deployed successfully

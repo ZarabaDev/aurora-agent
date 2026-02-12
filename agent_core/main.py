@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+import threading
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,7 +10,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.prompt import Prompt
-from rich.status import Status
 from rich.live import Live
 from rich.spinner import Spinner
 
@@ -16,8 +17,35 @@ from rich.spinner import Spinner
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent_core.core.orchestrator import Orchestrator
+from agent_core.modules.cognitive.scheduler import TaskScheduler
+from tools_library import telegram_sender
 
 console = Console()
+
+def scheduler_worker(engine: Orchestrator):
+    """Worker que roda em background verificando tarefas agendadas."""
+    scheduler = TaskScheduler()
+    while True:
+        try:
+            due_tasks = scheduler.check_due_tasks()
+            for task in due_tasks:
+                console.print(f"\n[bold cyan]⏰ Executando tarefa agendada:[/bold cyan] {task['description']}")
+                
+                # Executa a tarefa como se fosse uma mensagem do usuário
+                results = []
+                for event in engine.process_message(f"EXECUTE TAREFA AGENDADA: {task['description']}"):
+                    if event.type == "final_answer":
+                        results.append(event.content)
+                
+                # Envia resultado via Telegram
+                if results:
+                    final_msg = f"🔔 *Tarefa Agendada Concluída*\n\n*Tarefa:* {task['description']}\n\n{results[-1]}"
+                    telegram_sender.run(final_msg)
+            
+        except Exception as e:
+            console.print(f"[red]Erro no Scheduler Worker: {e}[/red]")
+        
+        time.sleep(30) # Verifica a cada 30 segundos
 
 def main():
     console.print(Panel("[bold cyan]Inicializando Aurora (v4.0 - Cognitive Core)[/bold cyan]", border_style="cyan"))
@@ -32,6 +60,12 @@ def main():
             return
     
     console.print(f"[green]{init_event.content}[/green]")
+    
+    # Inicia o Scheduler em background
+    scheduler_thread = threading.Thread(target=scheduler_worker, args=(engine,), daemon=True)
+    scheduler_thread.start()
+    console.print("[dim cyan]ℹ Scheduler em background ativado.[/dim cyan]")
+
     console.print("[dim]Pressione Ctrl+C para sair[/dim]\n")
 
     while True:
@@ -43,7 +77,6 @@ def main():
                 break
             
             # --- INTERACTION LOOP ---
-            # We use a Live display for the ongoing thinking process
             current_status_msg = "Processando..."
             
             with Live(Spinner("earth", text=current_status_msg), console=console, refresh_per_second=10) as live_status:
@@ -53,7 +86,7 @@ def main():
                     if event.type == "plan":
                         plan_md = "\n".join([f"{i+1}. {step}" for i, step in enumerate(event.content)])
                         mode = event.metadata.get("mode", "UNKNOWN")
-                        live_status.stop() # Temporary stop to print full panel
+                        live_status.stop() 
                         console.print(Panel(Markdown(plan_md), title=f"📋 Plano ({mode})", border_style="blue", expand=False))
                         live_status.start()
                         live_status.update(Spinner("earth", text="Executando plano..."))
@@ -66,19 +99,11 @@ def main():
                     elif event.type == "tool_call":
                         live_status.update(Spinner("bouncingBar", text=f"Usando ferramenta: {event.content}..."))
                     
-                    elif event.type == "tool_result":
-                        # Optional: Print raw result only in debug or verbose mode
-                        # console.print(f"[dim]  Result: {event.content}[/dim]")
-                        pass
-                        
                     elif event.type == "thought":
-                        # Subtle thought log (internal monologue or critique)
                         console.print(f"[dim italic]  💭 {event.content}[/dim italic]")
                     
                     elif event.type == "log":
-                        # System logs (Memory Found, Mode Selected, Synthesizing...)
                         live_status.update(Spinner("dots", text=f"{event.content}"))
-                        # Optionally print significant logs
                         if "Modo:" in str(event.content) or "Memórias" in str(event.content):
                              console.print(f"[dim cyan]  ℹ {event.content}[/dim cyan]")
 

@@ -14,6 +14,7 @@ import json
 import requests
 import uuid
 from dotenv import load_dotenv
+from datetime import datetime
 from flask import Flask, render_template, send_from_directory, request, jsonify
 from flask_socketio import SocketIO, emit
 
@@ -57,11 +58,55 @@ def tg_send_action(chat_id, action="typing"):
         pass
 
 # --- CORE PROCESSING (Shared by Web & Telegram) ---
+# Semaphore to limit concurrent background tasks on VPS
+background_tasks_semaphore = eventlet.semaphore.Semaphore(2)
+
+# Global tracking of active background tasks
+active_instances = {}
+
+def broadcast_instances():
+    """Broadcasts currently running background tasks."""
+    socketio.emit('update_instances', {'instances': list(active_instances.values())})
+
+def process_background_task(task_description):
+    """Executes a scheduled task in an isolated instance to avoid chat history pollution."""
+    instance_id = str(uuid.uuid4())[:8]
+    active_instances[instance_id] = {
+        "id": instance_id,
+        "description": task_description,
+        "start_time": datetime.now().isoformat(),
+        "status": "Iniciando..."
+    }
+    broadcast_instances()
+
+    with background_tasks_semaphore:
+        active_instances[instance_id]["status"] = "Processando..."
+        broadcast_instances()
+        
+        print(f"[Scheduler] Start background task: {task_description}")
+        # Dedicated instance for this task
+        temp_engine = Orchestrator()
+        temp_engine.initialize()
+        
+        results = []
+        try:
+            for event in temp_engine.process_message(f"EXECUTE TAREFA AGENDADA: {task_description}"):
+                if event.type == "final_answer":
+                    results.append(event.content)
+            
+            if results:
+                final_msg = f"🔔 *Tarefa Agendada Concluída*\n\n*Tarefa:* {task_description}\n\n{results[-1]}"
+                from tools_library import telegram_sender
+                telegram_sender.run(final_msg)
+        except Exception as e:
+            print(f"[Scheduler] Error executing task '{task_description}': {e}")
+        finally:
+            if instance_id in active_instances:
+                del active_instances[instance_id]
+            broadcast_instances()
+
 def process_engine_request(user_input, source="web", chat_id=None):
-    """
-    Unified processor that runs the engine and broadcasts events to WebSocket.
-    Returns the final answer text.
-    """
+    """Main engine processor for direct interactions."""
     global engine
     if engine is None:
         with engine_lock:
@@ -91,6 +136,10 @@ def process_engine_request(user_input, source="web", chat_id=None):
                 'message': event.content if event.type in ['error', 'log', 'thought'] else None
             })
             
+            # Emit task update after potential cron_scheduler calls
+            if event.type == "tool_call" and event.content == "cron_scheduler":
+                 eventlet.spawn_after(1, broadcast_tasks)
+
             if source == "telegram" and chat_id:
                 if event.type == "final_answer":
                     final_response = event.content
@@ -107,8 +156,32 @@ def process_engine_request(user_input, source="web", chat_id=None):
     socketio.emit('processing_complete', {})
     return final_response
 
+def broadcast_tasks():
+    """Broadcasts current scheduled tasks to all HUD clients."""
+    from agent_core.modules.cognitive.scheduler import TaskScheduler
+    scheduler = TaskScheduler()
+    tasks = scheduler.list_tasks()
+    socketio.emit('update_tasks', {'tasks': tasks})
 
-# --- TELEGRAM POLLING THREAD ---
+# --- WORKER THREADS ---
+def scheduler_poll_loop():
+    """Polls for due tasks and executes them in isolated greenlets."""
+    from agent_core.modules.cognitive.scheduler import TaskScheduler
+    print("[System] Neural Scheduler Worker Started.")
+    scheduler = TaskScheduler()
+    
+    while True:
+        try:
+            due_tasks = scheduler.check_due_tasks()
+            if due_tasks:
+                broadcast_tasks()
+                for task in due_tasks:
+                    eventlet.spawn(process_background_task, task['description'])
+        except Exception as e:
+            print(f"[Scheduler Worker Error]: {e}")
+        
+        eventlet.sleep(30)
+
 def telegram_poll_loop():
     if not TELEGRAM_TOKEN:
         print("[System] Telegram Token not found. Polling disabled.")
@@ -138,19 +211,16 @@ def telegram_poll_loop():
                         # Handle Text
                         if "text" in msg:
                             text = msg["text"]
-                            process_engine_request(text, source="telegram", chat_id=chat_id)
                             response_text = process_engine_request(text, source="telegram", chat_id=chat_id)
                             if response_text:
                                 tg_send_message(chat_id, response_text)
                         
                         # Handle Photo
                         elif "photo" in msg:
-                            photo = msg["photo"][-1] # Get largest size
+                            photo = msg["photo"][-1]
                             file_id = photo["file_id"]
-                            # Get file path
                             file_info = requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile?file_id={file_id}").json()
                             file_path = file_info["result"]["file_path"]
-                            # Download
                             img_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
                             img_data = requests.get(img_url).content
                             
@@ -159,9 +229,8 @@ def telegram_poll_loop():
                             with open(local_path, "wb") as f:
                                 f.write(img_data)
                             
-                            send_chat_action(chat_id, "typing")
+                            tg_send_action(chat_id, "typing")
                             
-                            # Vision Analysis
                             try:
                                 from tools_library.vision_analyzer import vision_analyzer
                                 description = vision_analyzer(local_path)
@@ -172,19 +241,15 @@ def telegram_poll_loop():
                             caption = msg.get("caption", "")
                             full_prompt = f"{vision_context}\n\n{caption}".strip()
                             
-                            # Log for user
-                            if not caption:
-                                send_message(chat_id, "Recebi sua imagem. Analisando...")
-                            
                             response_text = process_engine_request(full_prompt, source="telegram", chat_id=chat_id)
                             if response_text:
                                 tg_send_message(chat_id, response_text)
                             
         except Exception as e:
             print(f"[Telegram] Polling Error: {e}")
-            time.sleep(5)
+            eventlet.sleep(5)
             
-        time.sleep(1)
+        eventlet.sleep(1)
 
 # --- FLASK ROUTES ---
 @app.route('/')
@@ -214,6 +279,7 @@ def upload_file():
 def handle_connect():
     print('[HUD] Client connected')
     emit('system', {'message': 'Conexão estabelecida com Aurora HUD'})
+    broadcast_tasks()
 
 @socketio.on('init_engine')
 def handle_init():
@@ -230,7 +296,6 @@ def handle_init():
                 emit('ready', {'tools': len(engine.all_tools)})
         else:
             emit('ready', {'tools': len(engine.all_tools)})
-
 
 @socketio.on('reset_engine')
 def handle_reset():
@@ -249,6 +314,17 @@ def handle_reset():
              emit('system', {'message': 'Sessão reiniciada.'})
              emit('ready', {'tools': len(engine.all_tools)})
 
+@socketio.on('cancel_task')
+def handle_cancel_task(data):
+    task_id = data.get('task_id')
+    from agent_core.modules.cognitive.scheduler import TaskScheduler
+    scheduler = TaskScheduler()
+    if scheduler.remove_task(task_id):
+        emit('system', {'message': f'Tarefa {task_id} cancelada.'})
+        broadcast_tasks()
+    else:
+        emit('error', {'message': f'Não foi possível cancelar tarefa {task_id}.'})
+
 from tools_library.vision_analyzer import vision_analyzer
 
 @socketio.on('send_message')
@@ -261,7 +337,6 @@ def handle_message(data):
     if image_path:
         emit('system', {'message': 'Analysando imagem com visão computacional...'})
         try:
-            # Run vision analysis
             description = vision_analyzer(image_path)
             context_prefix = f"[CONTEXTO VISUAL DA IMAGEM]\n{description}\n[Caminho: {image_path}]\n\n"
             emit('system', {'message': 'Análise visual concluída.'})
@@ -269,25 +344,22 @@ def handle_message(data):
             print(f"Vision Error: {e}")
             context_prefix = f"[ERRO NA VISÃO]: Não foi possível analisar a imagem ({str(e)}). O usuário enviou: {image_path}\n\n"
     
-    # Combine context with user input
     final_input = f"{context_prefix}{user_input}".strip()
-    
     if not final_input: return
     
-    # Show user what we are sending (conceptually)
     display_msg = user_input
     if image_path:
         display_msg = f"[Imagem Anexada] {user_input}"
 
     emit('user_message', {'content': display_msg})
-    
-    # Process with the engine
     process_engine_request(final_input, source="web")
 
 
 if __name__ == '__main__':
+    # Start background workers
+    eventlet.spawn(scheduler_poll_loop)
+    
     if TELEGRAM_TOKEN:
-        import eventlet
         eventlet.spawn(telegram_poll_loop)
     
     socketio.run(app, host='0.0.0.0', port=5001, debug=False)

@@ -27,6 +27,7 @@ TELEGRAM_ALLOWED_CHAT_ID = os.getenv("TELEGRAM_DEFAULT_CHAT_ID")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from agent_core.core.orchestrator import Orchestrator
+from agent_core.core.instance_manager import InstanceManager
 
 app = Flask(__name__, static_folder='static', template_folder='static')
 app.config['SECRET_KEY'] = 'aurora-hud-secret'
@@ -64,36 +65,46 @@ background_tasks_semaphore = eventlet.semaphore.Semaphore(2)
 # Global tracking of active background tasks
 active_instances = {}
 
-def broadcast_instances():
-    """Broadcasts currently running background tasks."""
-    socketio.emit('update_instances', {'instances': list(active_instances.values())})
+def broadcast_instances(im: InstanceManager = None):
+    """Broadcasts currently running instances."""
+    if im is None:
+        im = InstanceManager()
+    instances = im.list_active()
+    socketio.emit('update_instances', {'instances': instances})
 
 def process_background_task(task_description):
     """Executes a scheduled task in an isolated instance to avoid chat history pollution."""
-    instance_id = str(uuid.uuid4())[:8]
-    active_instances[instance_id] = {
-        "id": instance_id,
-        "description": task_description,
-        "start_time": datetime.now().isoformat(),
-        "status": "Iniciando..."
-    }
-    broadcast_instances()
+    im = InstanceManager()
+
+    if not im.can_start_new():
+        print(f"[Scheduler] Limite de instâncias atingido. Ignorando: {task_description}")
+        return
+
+    instance_id = im.register(
+        description=task_description,
+        source="web",
+        instance_type="background",
+    )
+
+    if not instance_id:
+        return
+
+    broadcast_instances(im)
 
     with background_tasks_semaphore:
-        active_instances[instance_id]["status"] = "Processando..."
-        broadcast_instances()
-        
+        im.update_status(instance_id, "Processando...")
+        broadcast_instances(im)
+
         print(f"[Scheduler] Start background task: {task_description}")
-        # Dedicated instance for this task
         temp_engine = Orchestrator()
         temp_engine.initialize()
-        
+
         results = []
         try:
             for event in temp_engine.process_message(f"EXECUTE TAREFA AGENDADA: {task_description}"):
                 if event.type == "final_answer":
                     results.append(event.content)
-            
+
             if results:
                 final_msg = f"🔔 *Tarefa Agendada Concluída*\n\n*Tarefa:* {task_description}\n\n{results[-1]}"
                 from tools_library import telegram_sender
@@ -101,9 +112,8 @@ def process_background_task(task_description):
         except Exception as e:
             print(f"[Scheduler] Error executing task '{task_description}': {e}")
         finally:
-            if instance_id in active_instances:
-                del active_instances[instance_id]
-            broadcast_instances()
+            im.unregister(instance_id)
+            broadcast_instances(im)
 
 def process_engine_request(user_input, source="web", chat_id=None):
     """Main engine processor for direct interactions."""
@@ -158,29 +168,15 @@ def process_engine_request(user_input, source="web", chat_id=None):
 
 def broadcast_tasks():
     """Broadcasts current scheduled tasks to all HUD clients."""
-    from agent_core.modules.cognitive.scheduler import TaskScheduler
-    scheduler = TaskScheduler()
-    tasks = scheduler.list_tasks()
-    socketio.emit('update_tasks', {'tasks': tasks})
+    try:
+        from agent_core.core.cron_manager import CronManager
+        cm = CronManager()
+        tasks = cm.list_jobs()
+        socketio.emit('update_tasks', {'tasks': tasks})
+    except Exception as e:
+        print(f"[HUD] Erro ao listar tarefas cron: {e}")
+        socketio.emit('update_tasks', {'tasks': []})
 
-# --- WORKER THREADS ---
-def scheduler_poll_loop():
-    """Polls for due tasks and executes them in isolated greenlets."""
-    from agent_core.modules.cognitive.scheduler import TaskScheduler
-    print("[System] Neural Scheduler Worker Started.")
-    scheduler = TaskScheduler()
-    
-    while True:
-        try:
-            due_tasks = scheduler.check_due_tasks()
-            if due_tasks:
-                broadcast_tasks()
-                for task in due_tasks:
-                    eventlet.spawn(process_background_task, task['description'])
-        except Exception as e:
-            print(f"[Scheduler Worker Error]: {e}")
-        
-        eventlet.sleep(30)
 
 def telegram_poll_loop():
     if not TELEGRAM_TOKEN:
@@ -317,13 +313,16 @@ def handle_reset():
 @socketio.on('cancel_task')
 def handle_cancel_task(data):
     task_id = data.get('task_id')
-    from agent_core.modules.cognitive.scheduler import TaskScheduler
-    scheduler = TaskScheduler()
-    if scheduler.remove_task(task_id):
-        emit('system', {'message': f'Tarefa {task_id} cancelada.'})
-        broadcast_tasks()
-    else:
-        emit('error', {'message': f'Não foi possível cancelar tarefa {task_id}.'})
+    try:
+        from agent_core.core.cron_manager import CronManager
+        cm = CronManager()
+        if cm.remove_job(task_id):
+            emit('system', {'message': f'Tarefa {task_id} removida do crontab.'})
+            broadcast_tasks()
+        else:
+            emit('error', {'message': f'Tarefa {task_id} não encontrada no crontab.'})
+    except Exception as e:
+        emit('error', {'message': f'Erro ao cancelar tarefa: {e}'})
 
 from tools_library.vision_analyzer import vision_analyzer
 
@@ -357,7 +356,7 @@ def handle_message(data):
 
 if __name__ == '__main__':
     # Start background workers
-    eventlet.spawn(scheduler_poll_loop)
+    # No more scheduler_poll_loop — crontab handles scheduling natively
     
     if TELEGRAM_TOKEN:
         eventlet.spawn(telegram_poll_loop)

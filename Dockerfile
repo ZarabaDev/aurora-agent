@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     build-essential \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar apenas o requirements primeiro para cachear a instalação
@@ -27,5 +28,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # mas é bom ter para builds de produção sem volume.
 COPY . .
 
-# Comando padrão: Inicia o Bot do Telegram
-CMD ["python", "scripts/telegram_bot.py"]
+# Comando padrão: Inicia o serviço de cron e o Servidor Web (HUD + Telegram)
+CMD service cron start && python web_server.py

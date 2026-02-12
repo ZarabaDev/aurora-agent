@@ -1,11 +1,12 @@
 """
-Thinker v4.0 — Deep reasoning module using DeepSeek R1.
+Thinker v4.1 — Deep reasoning module using Groq Llama.
 
 Generates structured inner monologue + actionable plan.
 Soul is injected into the thinking prompt.
 """
 
 import json
+import re
 from agent_core.interfaces.module import AgentModule
 from agent_core.utils.llm_factory import LLMFactory
 from langchain_core.prompts import ChatPromptTemplate
@@ -33,6 +34,10 @@ class Thinker(AgentModule):
         cwd = context.get("cwd", ".")
         memory = context.get("memory_context", "")
         soul = context.get("soul_text", "Você é Aurora, uma assistente autônoma.")
+        
+        memory_block = ""
+        if memory:
+            memory_block = f"\n[MEMÓRIAS RELEVANTES]\n{memory}\n"
 
         system_prompt = """{soul}
 
@@ -77,33 +82,77 @@ Diretório: {cwd}
                 "tools_desc": tools_desc
             })
             content = response.content.strip()
+            result = self._extract_json(content)
 
-            # Extract JSON from markdown code blocks if present
-            if "```" in content:
-                parts = content.split("```")
-                for part in parts[1:]:
-                    cleaned = part.strip()
-                    if cleaned.startswith("json"):
-                        cleaned = cleaned[4:].strip()
-                    try:
-                        return json.loads(cleaned)
-                    except json.JSONDecodeError:
-                        continue
+            if result:
+                # Garante que as chaves obrigatórias existam
+                result.setdefault("thought_stream", "")
+                result.setdefault("plan", [user_input])
+                result.setdefault("self_notes", "")
+                return result
 
-            return json.loads(content)
-
-        except json.JSONDecodeError:
+            # Fallback: não conseguiu parsear, mas retorna o conteúdo bruto
             return {
-                "thought_stream": f"Não consegui estruturar meus pensamentos em JSON, mas pensei: {content[:500]}",
+                "thought_stream": content[:800],
                 "plan": [user_input],
-                "self_notes": "Melhorar parsing de JSON do DeepSeek",
+                "self_notes": "LLM retornou texto livre em vez de JSON",
             }
+
         except Exception as e:
             return {
                 "thought_stream": f"Erro durante pensamento profundo: {e}",
                 "plan": [f"Responder diretamente: {user_input}"],
                 "self_notes": f"Erro no Thinker: {e}",
             }
+
+    def _extract_json(self, content: str) -> dict | None:
+        """
+        Tenta extrair JSON estruturado do output do LLM usando múltiplas estratégias.
+        Retorna dict se encontrar, None se falhar.
+        """
+        # Estratégia 1: Regex para code block ```json ... ```
+        code_block_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*```', content, re.DOTALL)
+        if code_block_match:
+            try:
+                return json.loads(code_block_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # Estratégia 2: JSON object solto { ... } (mais externo)
+        brace_match = re.search(r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})', content, re.DOTALL)
+        if brace_match:
+            try:
+                return json.loads(brace_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # Estratégia 3: Limpeza agressiva e retry
+        cleaned = self._clean_json_string(content)
+        if cleaned:
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+
+        return None
+
+    @staticmethod
+    def _clean_json_string(content: str) -> str | None:
+        """Remove artefatos comuns que quebram o JSON parse."""
+        # Tenta encontrar o bloco JSON mais externo
+        start = content.find('{')
+        end = content.rfind('}')
+        if start == -1 or end == -1 or end <= start:
+            return None
+
+        raw = content[start:end + 1]
+
+        # Remove trailing commas antes de } ou ]
+        raw = re.sub(r',\s*([}\]])', r'\1', raw)
+        # Remove comments single-line
+        raw = re.sub(r'//.*?$', '', raw, flags=re.MULTILINE)
+
+        return raw
 
     def quick_reflect(self, user_input: str, context: dict = None) -> str:
         """

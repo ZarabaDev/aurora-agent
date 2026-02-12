@@ -1,7 +1,5 @@
 import os
 import sys
-import time
-import threading
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,35 +15,10 @@ from rich.spinner import Spinner
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent_core.core.orchestrator import Orchestrator
-from agent_core.modules.cognitive.scheduler import TaskScheduler
-from tools_library import telegram_sender
+from agent_core.core.instance_manager import InstanceManager
 
 console = Console()
 
-def scheduler_worker(engine: Orchestrator):
-    """Worker que roda em background verificando tarefas agendadas."""
-    scheduler = TaskScheduler()
-    while True:
-        try:
-            due_tasks = scheduler.check_due_tasks()
-            for task in due_tasks:
-                console.print(f"\n[bold cyan]⏰ Executando tarefa agendada:[/bold cyan] {task['description']}")
-                
-                # Executa a tarefa como se fosse uma mensagem do usuário
-                results = []
-                for event in engine.process_message(f"EXECUTE TAREFA AGENDADA: {task['description']}"):
-                    if event.type == "final_answer":
-                        results.append(event.content)
-                
-                # Envia resultado via Telegram
-                if results:
-                    final_msg = f"🔔 *Tarefa Agendada Concluída*\n\n*Tarefa:* {task['description']}\n\n{results[-1]}"
-                    telegram_sender.run(final_msg)
-            
-        except Exception as e:
-            console.print(f"[red]Erro no Scheduler Worker: {e}[/red]")
-        
-        time.sleep(30) # Verifica a cada 30 segundos
 
 def main():
     console.print(Panel("[bold cyan]Inicializando Aurora (v4.0 - Cognitive Core)[/bold cyan]", border_style="cyan"))
@@ -61,10 +34,10 @@ def main():
     
     console.print(f"[green]{init_event.content}[/green]")
     
-    # Inicia o Scheduler em background
-    scheduler_thread = threading.Thread(target=scheduler_worker, args=(engine,), daemon=True)
-    scheduler_thread.start()
-    console.print("[dim cyan]ℹ Scheduler em background ativado.[/dim cyan]")
+    # Registrar instância interativa
+    im = InstanceManager()
+    instance_id = im.register("Terminal REPL", source="terminal", instance_type="interactive")
+    console.print("[dim cyan]ℹ Instância registrada no InstanceManager.[/dim cyan]")
 
     console.print("[dim]Pressione Ctrl+C para sair[/dim]\n")
 
@@ -118,6 +91,8 @@ def main():
 
         except KeyboardInterrupt:
             console.print("\nEncerrando...")
+            if instance_id:
+                im.unregister(instance_id)
             break
         except Exception as e:
             console.print(f"\n[bold red]Erro no loop UI:[/bold red] {e}")

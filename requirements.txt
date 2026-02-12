@@ -13,3 +13,5 @@ flask-socketio
 python-socketio
 eventlet
 sentence-transformers
+python-crontab
+croniter
